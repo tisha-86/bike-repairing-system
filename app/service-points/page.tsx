@@ -15,18 +15,17 @@ const MapComponent = dynamic(() => import("../components/MapComponent"), {
 });
 
 export default function ServicePointsPage() {
-  const { servicePoints } = useBikeWash();
+  const { verifiedPoints } = useBikeWash();
   const [selected, setSelected] = useState<ServicePoint | null>(null);
 
   useEffect(() => {
-    if (servicePoints.length > 0 && !selected) {
-      setSelected(servicePoints[0]);
+    if (verifiedPoints.length > 0 && !selected) {
+      setSelected(verifiedPoints[0]);
     }
-  }, [servicePoints, selected]);
+  }, [verifiedPoints, selected]);
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
-      {/* Header + Register Button */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Service Points</h1>
@@ -43,11 +42,9 @@ export default function ServicePointsPage() {
         </Link>
       </div>
 
-      {/* Left Side List + Right Side Map */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Side: Service Points List */}
         <div className="lg:col-span-4 space-y-3">
-          {servicePoints.map((pt) => {
+          {verifiedPoints.map((pt) => {
             const isSelected = selected?.id === pt.id;
             return (
               <div
@@ -70,10 +67,9 @@ export default function ServicePointsPage() {
           })}
         </div>
 
-        {/* Right Side: Interactive Map with Bubbles */}
         <div className="lg:col-span-8">
           <MapComponent
-            points={servicePoints}
+            points={verifiedPoints}
             selected={selected}
             onSelect={(pt) => setSelected(pt)}
           />

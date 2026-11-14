@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { ServicePoint } from "../context/BikeWashContext";
 
@@ -14,60 +13,6 @@ const markerIcon = L.icon({
   popupAnchor: [1, -34],
 });
 
-function FlyToPoint({ point }: { point: ServicePoint | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (point) {
-      map.flyTo([point.lat, point.lng], 14);
-    }
-  }, [point, map]);
-  return null;
-}
-
-function PointMarker({
-  point,
-  isSelected,
-  onSelect,
-}: {
-  point: ServicePoint;
-  isSelected: boolean;
-  onSelect: (p: ServicePoint) => void;
-}) {
-  const ref = useRef<L.Marker>(null);
-
-  useEffect(() => {
-    if (isSelected && ref.current) {
-      ref.current.openPopup();
-    }
-  }, [isSelected]);
-
-  return (
-    <Marker
-      ref={ref}
-      position={[point.lat, point.lng]}
-      icon={markerIcon}
-      eventHandlers={{ click: () => onSelect(point) }}
-    >
-      <Popup>
-        <div className="text-xs space-y-1">
-          <p className="font-bold text-sm text-gray-900">{point.name}</p>
-          <p className="text-gray-500">{point.address}</p>
-          <p className="text-gray-700">{point.phone}</p>
-          <p>
-            Bikes per day: <strong>{point.bikesPerDay}</strong>
-          </p>
-          <p>
-            Slots per day: <strong>{point.slotsPerDay}</strong>
-          </p>
-          <p>
-            Off days: <strong>{point.offDays}</strong>
-          </p>
-        </div>
-      </Popup>
-    </Marker>
-  );
-}
-
 export default function MapComponent({
   points,
   selected,
@@ -77,25 +22,76 @@ export default function MapComponent({
   selected: ServicePoint | null;
   onSelect: (p: ServicePoint) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<{ [id: number]: L.Marker }>({});
+
+  // ১. ম্যাপ একবারই ইনিশিয়ালাইজ করা (Strict Mode-এর appendChild এরর এড়াতে)
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const map = L.map(containerRef.current).setView([23.8685, 90.3985], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // ২. সব Service Point-এর বাবল (Marker) ও পপআপ যোগ করা
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // আগের মার্কারগুলো পরিষ্কার করা
+    Object.values(markersRef.current).forEach((m) => m.remove());
+    markersRef.current = {};
+
+    points.forEach((pt) => {
+      const marker = L.marker([pt.lat, pt.lng], { icon: markerIcon }).addTo(map);
+
+      marker.bindPopup(`
+        <div style="font-size:12px; line-height:1.5; min-width:150px;">
+          <p style="font-weight:700; font-size:14px; margin:0 0 2px 0; color:#111827;">${pt.name}</p>
+          <p style="color:#6b7280; margin:0 0 4px 0;">${pt.address}</p>
+          <p style="color:#374151; margin:0 0 4px 0;">${pt.phone}</p>
+          <p style="margin:0;">Bikes per day: <strong>${pt.bikesPerDay}</strong></p>
+          <p style="margin:0;">Slots per day: <strong>${pt.slotsPerDay}</strong></p>
+          <p style="margin:0;">Off days: <strong>${pt.offDays}</strong></p>
+        </div>
+      `);
+
+      marker.on("click", () => {
+        onSelect(pt);
+      });
+
+      markersRef.current[pt.id] = marker;
+    });
+  }, [points, onSelect]);
+
+  // ৩. কার্ডে বা বাবলে ক্লিক করলে ম্যাপ ফ্লাই করে পপআপ ওপেন করা
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selected) return;
+
+    map.flyTo([selected.lat, selected.lng], 14, { duration: 0.8 });
+    const marker = markersRef.current[selected.id];
+    if (marker) {
+      marker.openPopup();
+    }
+  }, [selected]);
+
   return (
-    <MapContainer
-      center={[23.8685, 90.3985]}
-      zoom={13}
+    <div
+      ref={containerRef}
       className="w-full h-[460px] rounded-lg border border-gray-200 z-0"
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <FlyToPoint point={selected} />
-      {points.map((pt) => (
-        <PointMarker
-          key={pt.id}
-          point={pt}
-          isSelected={selected?.id === pt.id}
-          onSelect={onSelect}
-        />
-      ))}
-    </MapContainer>
+    />
   );
 }

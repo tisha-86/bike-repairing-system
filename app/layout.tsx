@@ -22,8 +22,11 @@ export default function RootLayout({
   ];
 
   return (
-    <html lang="en">
-      <body className="bg-white text-gray-900 min-h-screen flex flex-col justify-between font-sans">
+    <html lang="en" suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className="bg-white text-gray-900 min-h-screen flex flex-col justify-between font-sans"
+      >
         <BikeWashProvider>
           {/* Top Navbar */}
           <header className="w-full border-b border-gray-100">

@@ -12,6 +12,7 @@ export interface ServicePoint {
   offDays: string;
   lat: number;
   lng: number;
+  status: "verified" | "pending" | "rejected";
 }
 
 export interface Biker {
@@ -26,8 +27,11 @@ export interface Biker {
 
 interface BikeWashContextType {
   servicePoints: ServicePoint[];
+  verifiedPoints: ServicePoint[];
   bikers: Biker[];
-  addServicePoint: (point: Omit<ServicePoint, "id">) => void;
+  addServicePoint: (point: Omit<ServicePoint, "id" | "status">) => void;
+  verifyServicePoint: (id: number) => void;
+  rejectServicePoint: (id: number) => void;
   addBiker: (biker: { name: string; area: string; phone: string }) => void;
 }
 
@@ -42,6 +46,7 @@ const DEFAULT_POINTS: ServicePoint[] = [
     offDays: "Fri",
     lat: 23.8685,
     lng: 90.3985,
+    status: "verified",
   },
   {
     id: 2,
@@ -53,6 +58,7 @@ const DEFAULT_POINTS: ServicePoint[] = [
     offDays: "Fri, Sat",
     lat: 23.7461,
     lng: 90.3742,
+    status: "verified",
   },
   {
     id: 3,
@@ -64,6 +70,7 @@ const DEFAULT_POINTS: ServicePoint[] = [
     offDays: "None",
     lat: 23.7925,
     lng: 90.4078,
+    status: "verified",
   },
 ];
 
@@ -81,16 +88,36 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
   const [bikers, setBikers] = useState<Biker[]>(DEFAULT_BIKERS);
 
   useEffect(() => {
-    const savedPoints = localStorage.getItem("bikewash_points");
+    const savedPoints = localStorage.getItem("bikewash_points_v2");
     const savedBikers = localStorage.getItem("bikewash_bikers");
     if (savedPoints) setServicePoints(JSON.parse(savedPoints));
     if (savedBikers) setBikers(JSON.parse(savedBikers));
   }, []);
 
-  const addServicePoint = (point: Omit<ServicePoint, "id">) => {
-    const updated = [...servicePoints, { ...point, id: Date.now() }];
+  const savePoints = (updated: ServicePoint[]) => {
     setServicePoints(updated);
-    localStorage.setItem("bikewash_points", JSON.stringify(updated));
+    localStorage.setItem("bikewash_points_v2", JSON.stringify(updated));
+  };
+
+  const addServicePoint = (point: Omit<ServicePoint, "id" | "status">) => {
+    const newPoint: ServicePoint = {
+      ...point,
+      id: Date.now(),
+      status: "pending",
+    };
+    savePoints([...servicePoints, newPoint]);
+  };
+
+  const verifyServicePoint = (id: number) => {
+    savePoints(
+      servicePoints.map((pt) => (pt.id === id ? { ...pt, status: "verified" } : pt))
+    );
+  };
+
+  const rejectServicePoint = (id: number) => {
+    savePoints(
+      servicePoints.map((pt) => (pt.id === id ? { ...pt, status: "rejected" } : pt))
+    );
   };
 
   const addBiker = (biker: { name: string; area: string; phone: string }) => {
@@ -110,8 +137,20 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("bikewash_bikers", JSON.stringify(updated));
   };
 
+  const verifiedPoints = servicePoints.filter((pt) => pt.status === "verified");
+
   return (
-    <BikeWashContext.Provider value={{ servicePoints, bikers, addServicePoint, addBiker }}>
+    <BikeWashContext.Provider
+      value={{
+        servicePoints,
+        verifiedPoints,
+        bikers,
+        addServicePoint,
+        verifyServicePoint,
+        rejectServicePoint,
+        addBiker,
+      }}
+    >
       {children}
     </BikeWashContext.Provider>
   );

@@ -32,7 +32,9 @@ interface BikeWashContextType {
   addServicePoint: (point: Omit<ServicePoint, "id" | "status">) => void;
   verifyServicePoint: (id: number) => void;
   rejectServicePoint: (id: number) => void;
+  deleteServicePoint: (id: number) => void;
   addBiker: (biker: { name: string; area: string; phone: string }) => void;
+  toggleBikerStatus: (id: number) => void;
 }
 
 const DEFAULT_POINTS: ServicePoint[] = [
@@ -99,6 +101,11 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("bikewash_points_v2", JSON.stringify(updated));
   };
 
+  const saveBikers = (updated: Biker[]) => {
+    setBikers(updated);
+    localStorage.setItem("bikewash_bikers", JSON.stringify(updated));
+  };
+
   const addServicePoint = (point: Omit<ServicePoint, "id" | "status">) => {
     const newPoint: ServicePoint = {
       ...point,
@@ -120,6 +127,10 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const deleteServicePoint = (id: number) => {
+    savePoints(servicePoints.filter((pt) => pt.id !== id));
+  };
+
   const addBiker = (biker: { name: string; area: string; phone: string }) => {
     const updated = [
       ...bikers,
@@ -133,8 +144,17 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
         status: "Available" as const,
       },
     ];
-    setBikers(updated);
-    localStorage.setItem("bikewash_bikers", JSON.stringify(updated));
+    saveBikers(updated);
+  };
+
+  const toggleBikerStatus = (id: number) => {
+    saveBikers(
+      bikers.map((b) =>
+        b.id === id
+          ? { ...b, status: b.status === "Available" ? "Busy" : "Available" }
+          : b
+      )
+    );
   };
 
   const verifiedPoints = servicePoints.filter((pt) => pt.status === "verified");
@@ -148,7 +168,9 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
         addServicePoint,
         verifyServicePoint,
         rejectServicePoint,
+        deleteServicePoint,
         addBiker,
+        toggleBikerStatus,
       }}
     >
       {children}

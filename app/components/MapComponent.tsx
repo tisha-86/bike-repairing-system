@@ -26,7 +26,6 @@ export default function MapComponent({
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<{ [id: number]: L.Marker }>({});
 
-  // ১. ম্যাপ একবারই ইনিশিয়ালাইজ করা (Strict Mode-এর appendChild এরর এড়াতে)
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -45,12 +44,10 @@ export default function MapComponent({
     };
   }, []);
 
-  // ২. সব Service Point-এর বাবল (Marker) ও পপআপ যোগ করা
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // আগের মার্কারগুলো পরিষ্কার করা
     Object.values(markersRef.current).forEach((m) => m.remove());
     markersRef.current = {};
 
@@ -76,7 +73,6 @@ export default function MapComponent({
     });
   }, [points, onSelect]);
 
-  // ৩. কার্ডে বা বাবলে ক্লিক করলে ম্যাপ ফ্লাই করে পপআপ ওপেন করা
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selected) return;
@@ -91,7 +87,7 @@ export default function MapComponent({
   return (
     <div
       ref={containerRef}
-      className="w-full h-[460px] rounded-lg border border-gray-200 z-0"
+      className="w-full h-[460px] rounded-xl border border-slate-200 z-0"
     />
   );
 }

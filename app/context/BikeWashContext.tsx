@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { analyzeBookingFraud, FraudAnalysis } from "../utils/aiEngine";
 
 export interface ServicePoint {
   id: number;
@@ -28,12 +29,31 @@ export interface Biker {
   isSample?: boolean;
 }
 
+export interface Booking {
+  id: number;
+  serviceName: string;
+  price: string;
+  numericPrice: number;
+  servicePoint: string;
+  customerName: string;
+  customerPhone: string;
+  bikeModel: string;
+  date: string;
+  timeSlot: string;
+  status: "Pending" | "Confirmed" | "Completed" | "Cancelled";
+  paymentStatus: "Unpaid" | "Paid";
+  paidBy?: "Biker" | "Service Point";
+  transactionId?: string;
+  fraudAnalysis: FraudAnalysis;
+}
+
 export interface AdminNotification {
   id: number;
   title: string;
   message: string;
   timestamp: string;
   read: boolean;
+  isAlert?: boolean;
 }
 
 interface BikeWashContextType {
@@ -41,8 +61,10 @@ interface BikeWashContextType {
   verifiedPoints: ServicePoint[];
   bikers: Biker[];
   verifiedBikers: Biker[];
+  bookings: Booking[];
   notifications: AdminNotification[];
   unreadCount: number;
+  getAvailableSlots: (pointName: string, date: string) => number;
   addServicePoint: (point: Omit<ServicePoint, "id" | "status">) => void;
   verifyServicePoint: (id: number) => void;
   rejectServicePoint: (id: number) => void;
@@ -50,6 +72,9 @@ interface BikeWashContextType {
   verifyBiker: (id: number) => void;
   rejectBiker: (id: number) => void;
   toggleBikerStatus: (id: number) => void;
+  addBooking: (booking: Omit<Booking, "id" | "status" | "paymentStatus" | "fraudAnalysis">) => Booking;
+  updateBookingStatus: (id: number, status: Booking["status"]) => void;
+  completeBookingPayment: (id: number, paidBy: "Biker" | "Service Point", tranId: string) => boolean;
   markAllNotificationsRead: () => void;
 }
 
@@ -107,41 +132,59 @@ const BikeWashContext = createContext<BikeWashContextType | undefined>(undefined
 export function BikeWashProvider({ children }: { children: React.ReactNode }) {
   const [servicePoints, setServicePoints] = useState<ServicePoint[]>(DEFAULT_POINTS);
   const [bikers, setBikers] = useState<Biker[]>(DEFAULT_BIKERS);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
 
   useEffect(() => {
-    const savedPoints = localStorage.getItem("bw_points_v3");
-    const savedBikers = localStorage.getItem("bw_bikers_v3");
-    const savedNotifs = localStorage.getItem("bw_notifs_v3");
+    const savedPoints = localStorage.getItem("bw_points_v4");
+    const savedBikers = localStorage.getItem("bw_bikers_v4");
+    const savedBookings = localStorage.getItem("bw_bookings_v4");
+    const savedNotifs = localStorage.getItem("bw_notifs_v4");
     if (savedPoints) setServicePoints(JSON.parse(savedPoints));
     if (savedBikers) setBikers(JSON.parse(savedBikers));
+    if (savedBookings) setBookings(JSON.parse(savedBookings));
     if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
   }, []);
 
   const savePoints = (updated: ServicePoint[]) => {
     setServicePoints(updated);
-    localStorage.setItem("bw_points_v3", JSON.stringify(updated));
+    localStorage.setItem("bw_points_v4", JSON.stringify(updated));
   };
 
   const saveBikers = (updated: Biker[]) => {
     setBikers(updated);
-    localStorage.setItem("bw_bikers_v3", JSON.stringify(updated));
+    localStorage.setItem("bw_bikers_v4", JSON.stringify(updated));
+  };
+
+  const saveBookings = (updated: Booking[]) => {
+    setBookings(updated);
+    localStorage.setItem("bw_bookings_v4", JSON.stringify(updated));
   };
 
   const saveNotifs = (updated: AdminNotification[]) => {
     setNotifications(updated);
-    localStorage.setItem("bw_notifs_v3", JSON.stringify(updated));
+    localStorage.setItem("bw_notifs_v4", JSON.stringify(updated));
   };
 
-  const pushNotification = (title: string, message: string) => {
+  const pushNotification = (title: string, message: string, isAlert = false) => {
     const newNotif: AdminNotification = {
-      id: Date.now(),
+      id: Date.now() + Math.floor(Math.random() * 100),
       title,
       message,
       timestamp: new Date().toLocaleString(),
       read: false,
+      isAlert,
     };
     saveNotifs([newNotif, ...notifications]);
+  };
+
+  const getAvailableSlots = (pointName: string, date: string) => {
+    const point = servicePoints.find((p) => p.name === pointName);
+    if (!point) return 0;
+    const bookedCount = bookings.filter(
+      (b) => b.servicePoint === pointName && b.date === date && b.status !== "Cancelled"
+    ).length;
+    return Math.max(0, point.slotsPerDay - bookedCount);
   };
 
   const addServicePoint = (point: Omit<ServicePoint, "id" | "status">) => {
@@ -154,20 +197,16 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
     savePoints([newPoint, ...servicePoints]);
     pushNotification(
       "New service point",
-      `${point.name} registered and is waiting for verification.`
+      point.name + " registered and is waiting for verification."
     );
   };
 
   const verifyServicePoint = (id: number) => {
-    savePoints(
-      servicePoints.map((pt) => (pt.id === id ? { ...pt, status: "verified" } : pt))
-    );
+    savePoints(servicePoints.map((pt) => (pt.id === id ? { ...pt, status: "verified" } : pt)));
   };
 
   const rejectServicePoint = (id: number) => {
-    savePoints(
-      servicePoints.map((pt) => (pt.id === id ? { ...pt, status: "rejected" } : pt))
-    );
+    savePoints(servicePoints.map((pt) => (pt.id === id ? { ...pt, status: "rejected" } : pt)));
   };
 
   const addBiker = (biker: { name: string; area: string; phone: string }) => {
@@ -185,30 +224,78 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
     saveBikers([newBiker, ...bikers]);
     pushNotification(
       "New biker registration",
-      `${biker.name} (${biker.area}) applied and is waiting for verification.`
+      biker.name + " (" + biker.area + ") applied and is waiting for verification."
     );
   };
 
   const verifyBiker = (id: number) => {
-    saveBikers(
-      bikers.map((b) => (b.id === id ? { ...b, verificationStatus: "verified" } : b))
-    );
+    saveBikers(bikers.map((b) => (b.id === id ? { ...b, verificationStatus: "verified" } : b)));
   };
 
   const rejectBiker = (id: number) => {
-    saveBikers(
-      bikers.map((b) => (b.id === id ? { ...b, verificationStatus: "rejected" } : b))
-    );
+    saveBikers(bikers.map((b) => (b.id === id ? { ...b, verificationStatus: "rejected" } : b)));
   };
 
   const toggleBikerStatus = (id: number) => {
     saveBikers(
       bikers.map((b) =>
+        b.id === id ? { ...b, status: b.status === "Available" ? "Busy" : "Available" } : b
+      )
+    );
+  };
+
+  const addBooking = (booking: Omit<Booking, "id" | "status" | "paymentStatus" | "fraudAnalysis">) => {
+    const fraudAnalysis = analyzeBookingFraud(booking, bookings);
+    const newBooking: Booking = {
+      ...booking,
+      id: Date.now(),
+      status: "Pending",
+      paymentStatus: "Unpaid",
+      fraudAnalysis,
+    };
+    saveBookings([newBooking, ...bookings]);
+
+    if (fraudAnalysis.isFraud) {
+      pushNotification(
+        "⚠️ AI Fraud Alert Detected!",
+        `Suspicious booking by ${booking.customerName} (${booking.customerPhone}) at ${booking.servicePoint}. Reason: ${fraudAnalysis.reasons[0]}`,
+        true
+      );
+    } else {
+      pushNotification(
+        "New bike booking",
+        `${booking.customerName} booked ${booking.serviceName} at ${booking.servicePoint} (${booking.date}).`
+      );
+    }
+    return newBooking;
+  };
+
+  const updateBookingStatus = (id: number, status: Booking["status"]) => {
+    saveBookings(bookings.map((b) => (b.id === id ? { ...b, status } : b)));
+  };
+
+  // Mutual Exclusion Payment: যেকোনো একজন (Biker বা Service Point) পেমেন্ট করলে অন্যজন লক হয়ে যাবে
+  const completeBookingPayment = (
+    id: number,
+    paidBy: "Biker" | "Service Point",
+    tranId: string
+  ): boolean => {
+    const target = bookings.find((b) => b.id === id);
+    if (!target || target.paymentStatus === "Paid") {
+      return false; // Already paid by the other party!
+    }
+    saveBookings(
+      bookings.map((b) =>
         b.id === id
-          ? { ...b, status: b.status === "Available" ? "Busy" : "Available" }
+          ? { ...b, paymentStatus: "Paid", paidBy, transactionId: tranId }
           : b
       )
     );
+    pushNotification(
+      "SSLCommerz Payment Completed",
+      `Booking #${id} (${target.price}) paid via SSLCommerz Sandbox by ${paidBy}. TranID: ${tranId}`
+    );
+    return true;
   };
 
   const markAllNotificationsRead = () => {
@@ -226,8 +313,10 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
         verifiedPoints,
         bikers,
         verifiedBikers,
+        bookings,
         notifications,
         unreadCount,
+        getAvailableSlots,
         addServicePoint,
         verifyServicePoint,
         rejectServicePoint,
@@ -235,6 +324,9 @@ export function BikeWashProvider({ children }: { children: React.ReactNode }) {
         verifyBiker,
         rejectBiker,
         toggleBikerStatus,
+        addBooking,
+        updateBookingStatus,
+        completeBookingPayment,
         markAllNotificationsRead,
       }}
     >

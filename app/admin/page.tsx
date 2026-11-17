@@ -9,6 +9,7 @@ export default function AdminPortalPage() {
   const {
     servicePoints,
     bikers,
+    bookings,
     notifications,
     unreadCount,
     verifyServicePoint,
@@ -16,16 +17,18 @@ export default function AdminPortalPage() {
     verifyBiker,
     rejectBiker,
     toggleBikerStatus,
+    updateBookingStatus,
     markAllNotificationsRead,
   } = useBikeWash();
 
   const [passcode, setPasscode] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"points" | "bikers">("points");
+  const [activeTab, setActiveTab] = useState<"points" | "bikers" | "bookings">("points");
 
   const pendingPointsCount = servicePoints.filter((p) => p.status === "pending").length;
   const pendingBikersCount = bikers.filter((b) => b.verificationStatus === "pending").length;
+  const pendingBookingsCount = bookings.filter((b) => b.status === "Pending").length;
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +50,7 @@ export default function AdminPortalPage() {
             </span>
             <h1 className="text-2xl font-bold text-slate-900">Admin Portal</h1>
             <p className="text-xs text-slate-500">
-              Sign in with your admin passcode to review and verify service points and bikers.
+              Sign in with your admin passcode to manage service points, bikers, and bookings.
             </p>
           </div>
 
@@ -81,7 +84,7 @@ export default function AdminPortalPage() {
           Admin Portal
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Review and verify service points and bikers.
+          Review and verify service points, bikers, and customer bookings.
         </p>
       </div>
 
@@ -146,6 +149,17 @@ export default function AdminPortalPage() {
             }`}
           >
             Bikers ({bikers.length}) · {pendingBikersCount} pending
+          </button>
+
+          <button
+            onClick={() => setActiveTab("bookings")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${
+              activeTab === "bookings"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            Bookings ({bookings.length}) · {pendingBookingsCount} pending
           </button>
         </div>
 
@@ -291,6 +305,82 @@ export default function AdminPortalPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Tab 3: Customer Bookings Management */}
+      {activeTab === "bookings" && (
+        <div className="space-y-4">
+          {bookings.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 text-xs text-slate-500">
+              No customer bookings yet. Book a wash from the Services page to see it here.
+            </div>
+          ) : (
+            bookings.map((booking) => (
+              <div
+                key={booking.id}
+                className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs space-y-3"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      {booking.serviceName} · <span className="text-blue-600">{booking.price}</span>
+                    </h3>
+                    <p className="text-xs text-slate-600">
+                      Customer: <strong>{booking.customerName}</strong> ({booking.customerPhone})
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      Bike: {booking.bikeModel} · Point: <strong>{booking.servicePoint}</strong>
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Schedule: {booking.date} at {booking.timeSlot}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${
+                      booking.status === "Pending"
+                        ? "bg-amber-50 text-amber-700 border border-amber-200"
+                        : booking.status === "Confirmed"
+                        ? "bg-blue-50 text-blue-700 border border-blue-200"
+                        : booking.status === "Completed"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-red-50 text-red-700 border border-red-200"
+                    }`}
+                  >
+                    {booking.status}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {booking.status === "Pending" && (
+                    <button
+                      onClick={() => updateBookingStatus(booking.id, "Confirmed")}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-md transition"
+                    >
+                      Confirm Booking
+                    </button>
+                  )}
+                  {booking.status !== "Completed" && booking.status !== "Cancelled" && (
+                    <button
+                      onClick={() => updateBookingStatus(booking.id, "Completed")}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-md transition"
+                    >
+                      Mark Completed
+                    </button>
+                  )}
+                  {booking.status !== "Cancelled" && booking.status !== "Completed" && (
+                    <button
+                      onClick={() => updateBookingStatus(booking.id, "Cancelled")}
+                      className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-md transition"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>

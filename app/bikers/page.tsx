@@ -11,7 +11,7 @@ const avatarColors = [
 ];
 
 export default function BikersPage() {
-  const { bikers } = useBikeWash();
+  const { verifiedBikers } = useBikeWash();
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
@@ -30,7 +30,7 @@ export default function BikersPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-        {bikers.map((biker, idx) => {
+        {verifiedBikers.map((biker, idx) => {
           const gradient = avatarColors[idx % avatarColors.length];
           return (
             <div

@@ -31,7 +31,7 @@ export function analyzeBookingFraud(
 
   // Check invalid Bangladesh phone pattern
   const cleanPhone = candidate.customerPhone.replace(/\s|-/g, "");
-  if (!/^01[3-9]\d{8}$/.test(cleanPhone) \ /^01\d(\d)\1{6,}$/.test(cleanPhone)) {
+ if (!/^01[3-9]\d{8}$/.test(cleanPhone) || /^01\d(\d)\1{6,}$/.test(cleanPhone)) {
     score += 45;
     reasons.push("Suspicious or repeated-digit phone number pattern");
   }
